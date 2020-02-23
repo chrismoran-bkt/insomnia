@@ -14,6 +14,8 @@ import * as models from '../../../models';
 import SelectModal from '../../components/modals/select-modal';
 import { showError, showModal } from '../../components/modals/index';
 import * as db from '../../../common/database';
+import SettingsModal, { TAB_INDEX_PLUGINS } from '../../components/modals/settings-modal';
+import install from '../../../plugins/install';
 
 const LOCALSTORAGE_PREFIX = `insomnia::meta`;
 
@@ -27,6 +29,7 @@ const COMMAND_ALERT = 'app/alert';
 const COMMAND_LOGIN = 'app/auth/login';
 const COMMAND_TRIAL_END = 'app/billing/trial-end';
 const COMMAND_IMPORT_URI = 'app/import';
+const COMMAND_PLUGIN_INSTALL = 'plugins/install';
 
 // ~~~~~~~~ //
 // REDUCERS //
@@ -100,13 +103,43 @@ export function newCommand(command, args) {
           title: 'Confirm Data Import',
           message: (
             <span>
-              Do you really want to import <code>{args.uri}</code>?
+              Do you really want to import <code>{args.name || args.uri}</code>?
             </span>
           ),
           addCancel: true,
         });
         dispatch(importUri(args.workspaceId, args.uri));
         break;
+      case COMMAND_PLUGIN_INSTALL:
+        showModal(AskModal, {
+          title: 'Plugin Install',
+          message: (
+            <React.Fragment>
+              Do you want to install <code>{args.name}</code>?
+            </React.Fragment>
+          ),
+          yesText: 'Install',
+          noText: 'Cancel',
+          onDone: async isYes => {
+            if (!isYes) {
+              return;
+            }
+
+            try {
+              await install(args.name);
+              showModal(SettingsModal, TAB_INDEX_PLUGINS);
+            } catch (err) {
+              showError({
+                title: 'Plugin Install',
+                message: 'Failed to install plugin',
+                error: err.message,
+              });
+            }
+          },
+        });
+        break;
+      default:
+      // Nothing
     }
   };
 }
@@ -148,7 +181,19 @@ export function importFile(workspaceId) {
       filters: [
         {
           name: 'Insomnia Import',
-          extensions: ['', 'sh', 'txt', 'json', 'har', 'curl', 'bash', 'shell', 'yaml', 'yml'],
+          extensions: [
+            '',
+            'sh',
+            'txt',
+            'json',
+            'har',
+            'curl',
+            'bash',
+            'shell',
+            'yaml',
+            'yml',
+            'wsdl',
+          ],
         },
       ],
     };
@@ -181,6 +226,26 @@ export function importFile(workspaceId) {
   };
 }
 
+export function importClipBoard(workspaceId) {
+  return async dispatch => {
+    dispatch(loadStart());
+    const schema = electron.clipboard.readText();
+    // Let's import all the paths!
+    let importedWorkspaces = [];
+    try {
+      const result = await importUtils.importRaw(askToImportIntoWorkspace(workspaceId), schema);
+      importedWorkspaces = [...importedWorkspaces, ...result.summary[models.workspace.type]];
+    } catch (err) {
+      showModal(AlertModal, { title: 'Import Failed', message: err + '' });
+    } finally {
+      dispatch(loadStop());
+    }
+    if (importedWorkspaces.length === 1) {
+      dispatch(setActiveWorkspace(importedWorkspaces[0]._id));
+    }
+  };
+}
+
 export function importUri(workspaceId, uri) {
   return async dispatch => {
     dispatch(loadStart());
@@ -188,7 +253,8 @@ export function importUri(workspaceId, uri) {
     let importedWorkspaces = [];
     try {
       const result = await importUtils.importUri(askToImportIntoWorkspace(workspaceId), uri);
-      importedWorkspaces = [...importedWorkspaces, ...result.summary[models.workspace.type]];
+      const workspaces = result.summary[models.workspace.type] || [];
+      importedWorkspaces = [...importedWorkspaces, ...workspaces];
     } catch (err) {
       showModal(AlertModal, { title: 'Import Failed', message: err + '' });
     } finally {

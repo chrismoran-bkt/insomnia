@@ -22,6 +22,7 @@ import * as session from '../../../account/session';
 
 export const TAB_INDEX_EXPORT = 1;
 export const TAB_INDEX_SHORTCUTS = 3;
+export const TAB_INDEX_PLUGINS = 5;
 
 @autobind
 class SettingsModal extends PureComponent {
@@ -50,6 +51,11 @@ class SettingsModal extends PureComponent {
 
   _handleImportFile() {
     this.props.handleImportFile();
+    this.modal.hide();
+  }
+
+  _handleImportClipBoard() {
+    this.props.handleImportClipBoard();
     this.modal.hide();
   }
 
@@ -134,6 +140,7 @@ class SettingsModal extends PureComponent {
                 handleExportAll={this._handleExportAllToFile}
                 handleShowExportRequestsModal={this._handleShowExportRequestsModal}
                 handleImportFile={this._handleImportFile}
+                handleImportClipBoard={this._handleImportClipBoard}
                 handleImportUri={this._handleImportUri}
               />
             </TabPanel>
@@ -150,7 +157,7 @@ class SettingsModal extends PureComponent {
               <Account />
             </TabPanel>
             <TabPanel className="react-tabs__tab-panel pad scrollable">
-              <Plugins />
+              <Plugins settings={settings} updateSetting={this._handleUpdateSetting} />
             </TabPanel>
             <TabPanel className="react-tabs__tab-panel pad scrollable">
               <About />
